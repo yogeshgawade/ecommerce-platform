@@ -129,6 +129,27 @@ services:
       timeout: 5s
       retries: 10
 
+  cart-service:
+    build:
+      context: ../services/cart-service
+    container_name: ecommerce-cart-service
+    restart: unless-stopped
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      CART_TTL_SECONDS: "86400"
+    ports:
+      - "8001:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
   mongo_data:
