@@ -105,6 +105,30 @@ services:
       timeout: 10s
       retries: 10
 
+
+  catalog-service:
+    build:
+      context: ../services/catalog-service
+    container_name: ecommerce-catalog-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_MONGODB_URI: mongodb://admin:mongo_dev_password@mongo:27017/catalog_db?authSource=admin
+    ports:
+      - "8081:8081"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
   mongo_data:
