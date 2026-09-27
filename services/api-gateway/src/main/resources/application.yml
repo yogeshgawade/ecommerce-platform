@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+            - RemoveResponseHeader=Server
+          routes:
+            - id: auth-service
+              uri: http://localhost:8082
+              predicates:
+                - Path=/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: authCircuitBreaker
+                    fallbackUri: forward:/fallback/auth
+            - id: catalog-service
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/products/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: catalogCircuitBreaker
+                    fallbackUri: forward:/fallback/catalog
+            - id: cart-service
+              uri: http://localhost:8001
+              predicates:
+                - Path=/api/carts/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: cartCircuitBreaker
+                    fallbackUri: forward:/fallback/cart
+            - id: fallback-route
+              uri: no://op
+              predicates:
+                - Path=/fallback/**
+              filters:
+                - StripPrefix=1
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:local-development-secret-change-this-to-a-long-random-value}

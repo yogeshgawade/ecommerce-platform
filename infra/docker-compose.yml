@@ -11,7 +11,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_fresh:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -29,7 +29,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongo_data:/data/db
+      - mongo_data_fresh:/data/db
     healthcheck:
       test:
         [
@@ -113,7 +113,7 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_MONGODB_URI: mongodb://admin:mongo_dev_password@mongo:27017/catalog_db?authSource=admin
+      SPRING_MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_CATALOG_DB:-catalog_db}?authSource=admin
     ports:
       - "8081:8081"
     depends_on:
@@ -157,7 +157,7 @@ services:
     container_name: ecommerce-auth-service
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_AUTH_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       APP_JWT_SECRET: ${JWT_SECRET}
@@ -176,9 +176,44 @@ services:
       timeout: 5s
       retries: 10
 
+  api-gateway:
+    build:
+      context: ../services/api-gateway
+    container_name: ecommerce-api-gateway
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      APP_JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
 volumes:
+  # Existing volumes are retained for rollback; *_fresh volumes initialize with current .env credentials.
   postgres_data:
   mongo_data:
   redis_data:
   kafka_data:
   elasticsearch_data:
+  postgres_data_fresh:
+  mongo_data_fresh:
+
+networks:
+  ecommerce-network:
+    driver: bridge
