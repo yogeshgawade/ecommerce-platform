@@ -36,6 +36,10 @@ spring:
                   args:
                     name: cartCircuitBreaker
                     fallbackUri: forward:/fallback/cart
+            - id: inventory-service
+              uri: http://localhost:8083
+              predicates:
+                - Path=/api/inventory/**
             - id: fallback-route
               uri: no://op
               predicates:
