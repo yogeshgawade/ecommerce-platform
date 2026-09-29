@@ -26,6 +26,14 @@ Phase 0 is complete:
 - payment-service
 - api-gateway
 
+### Extended services
+
+- search-service
+- wishlist-service
+- review-service
+
+Search indexes catalog product events in Elasticsearch and is available through the API gateway at `GET /search`.
+
 ### Local infrastructure
 
 - PostgreSQL
@@ -40,6 +48,8 @@ Phase 0 is complete:
 cp .env.example .env
 docker compose --env-file .env -f infra/docker-compose.yml up -d
 ```
+
+The Compose configuration reads PostgreSQL settings from the `ECOMMERCE_POSTGRES_*` keys in `.env`. This prevents generic exported `POSTGRES_*` variables in your shell from overriding the project's database credentials.
 
 Check status:
 
@@ -75,7 +85,12 @@ docker compose --env-file .env -f infra/docker-compose.yml down -v
 - inventory-events
 - payment-events
 - catalog-events
+- review-events
 - notification-events
+
+## Frontend
+
+The React customer storefront and admin dashboard run from `frontend/`. See [frontend/README.md](frontend/README.md) for setup, Stripe test-mode configuration, and local commands. The customer app uses `http://localhost:3000`; the admin dashboard uses `http://localhost:3001`.
 
 ## Development phases
 

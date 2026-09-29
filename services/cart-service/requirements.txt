@@ -5,3 +5,4 @@ redis
 python-dotenv
 pytest
 httpx
+PyJWT>=2.8,<3

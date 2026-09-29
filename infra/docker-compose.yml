@@ -6,15 +6,15 @@ services:
     container_name: ecommerce-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${ECOMMERCE_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data_fresh:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${ECOMMERCE_POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,9 +23,19 @@ services:
     image: mongo:7.0.16
     container_name: ecommerce-mongo
     restart: unless-stopped
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        if [ ! -f /tmp/mongodb-keyfile ]; then
+          printf '%s\n' "$$MONGO_REPLICA_SET_KEY" > /tmp/mongodb-keyfile
+          chown mongodb:mongodb /tmp/mongodb-keyfile
+          chmod 400 /tmp/mongodb-keyfile
+        fi
+        exec /usr/local/bin/docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --keyFile /tmp/mongodb-keyfile
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_REPLICA_SET_KEY: ${MONGO_REPLICA_SET_KEY:-localdevelopmentmongoreplicasetkey0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd}
     ports:
       - "27017:27017"
     volumes:
@@ -34,7 +44,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "mongosh --quiet --username ${MONGO_ROOT_USERNAME} --password ${MONGO_ROOT_PASSWORD} --authenticationDatabase admin --eval 'db.adminCommand({ ping: 1 }).ok'"
+          "mongosh --quiet --username ${MONGO_ROOT_USERNAME} --password ${MONGO_ROOT_PASSWORD} --authenticationDatabase admin --eval 'try { rs.status().ok } catch (e) { if (e.codeName === \"NotYetInitialized\") { rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"mongo:27017\"}]}).ok } else { quit(1) } }'"
         ]
       interval: 10s
       timeout: 10s
@@ -114,11 +124,15 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_CATALOG_DB:-catalog_db}?authSource=admin
+      SPRING_MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_CATALOG_DB:-catalog_db}?authSource=admin&replicaSet=rs0
+      APP_JWT_SECRET: ${JWT_SECRET}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8081:8081"
     depends_on:
       mongo:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test:
@@ -140,10 +154,14 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       CART_TTL_SECONDS: "86400"
+      APP_JWT_SECRET: ${JWT_SECRET}
+      CATALOG_SERVICE_URL: http://catalog-service:8081
     ports:
       - "8001:8000"
     depends_on:
       redis:
+        condition: service_healthy
+      catalog-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -158,9 +176,9 @@ services:
     container_name: ecommerce-auth-service
     restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_AUTH_DB}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${ECOMMERCE_POSTGRES_AUTH_DB}
+      SPRING_DATASOURCE_USERNAME: ${ECOMMERCE_POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
       APP_JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8082:8082"
@@ -184,9 +202,9 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_INVENTORY_DB}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${ECOMMERCE_POSTGRES_INVENTORY_DB}
+      SPRING_DATASOURCE_USERNAME: ${ECOMMERCE_POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       APP_JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: "8083"
@@ -207,6 +225,171 @@ services:
       timeout: 5s
       retries: 10
 
+  order-service:
+    build:
+      context: ../services/order-service
+    container_name: ecommerce-order-service
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${ECOMMERCE_POSTGRES_ORDER_DB}
+      SPRING_DATASOURCE_USERNAME: ${ECOMMERCE_POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      APP_JWT_SECRET: ${JWT_SECRET}
+      CATALOG_SERVICE_URL: http://catalog-service:8081
+      SERVER_PORT: "8084"
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:8084/actuator/health || exit 1"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  payment-service:
+    build:
+      context: ../services/payment-service
+    container_name: ecommerce-payment-service
+    restart: unless-stopped
+    environment:
+      PAYMENT_DATABASE_URL: postgresql+psycopg://${ECOMMERCE_POSTGRES_USER}:${ECOMMERCE_POSTGRES_PASSWORD}@postgres:5432/${ECOMMERCE_POSTGRES_PAYMENT_DB}
+      APP_JWT_SECRET: ${JWT_SECRET}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_PAYMENT_TOPIC: payment-events
+      KAFKA_CONSUMER_GROUP_ID: payment-service-group
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  notification-service:
+    build:
+      context: ../services/notification-service
+    container_name: ecommerce-notification-service
+    restart: unless-stopped
+    environment:
+      NOTIFICATION_DATABASE_URL: postgresql+psycopg://${ECOMMERCE_POSTGRES_USER}:${ECOMMERCE_POSTGRES_PASSWORD}@postgres:5432/${ECOMMERCE_POSTGRES_NOTIFICATION_DB}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_ORDER_TOPIC: order-events
+      KAFKA_CONSUMER_GROUP_ID: notification-service-group
+      NOTIFICATION_EMAIL_BACKEND: ${NOTIFICATION_EMAIL_BACKEND:-log}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_SSL: ${SMTP_SSL:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  search-service:
+    build:
+      context: ../services/search-service
+    container_name: ecommerce-search-service
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_INDEX: products
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CATALOG_TOPIC: catalog-events
+      KAFKA_CONSUMER_GROUP_ID: search-service-group
+    ports:
+      - "8003:8000"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  wishlist-service:
+    build:
+      context: ../services/wishlist-service
+    container_name: ecommerce-wishlist-service
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_WISHLIST_DB:-wishlist_db}?authSource=admin&replicaSet=rs0
+      APP_JWT_SECRET: ${JWT_SECRET}
+      CATALOG_SERVICE_URL: http://catalog-service:8081
+      WISHLIST_MAX_PAGE_SIZE: "100"
+    ports:
+      - "8004:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  review-service:
+    build:
+      context: ../services/review-service
+    container_name: ecommerce-review-service
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_REVIEW_DB:-review_db}?authSource=admin&replicaSet=rs0
+      APP_JWT_SECRET: ${JWT_SECRET}
+      CATALOG_SERVICE_URL: http://catalog-service:8081
+      ORDER_SERVICE_URL: http://order-service:8084
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_REVIEW_TOPIC: review-events
+    ports:
+      - "8005:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   api-gateway:
     build:
       context: ../services/api-gateway
@@ -215,6 +398,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       APP_JWT_SECRET: ${JWT_SECRET}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -229,6 +413,16 @@ services:
         condition: service_healthy
       inventory-service:
         condition: service_healthy
+      order-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      search-service:
+        condition: service_healthy
+      wishlist-service:
+        condition: service_healthy
+      review-service:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -238,9 +432,6 @@ services:
       retries: 10
 
 volumes:
-  # Existing volumes are retained for rollback; *_fresh volumes initialize with current .env credentials.
-  postgres_data:
-  mongo_data:
   redis_data:
   kafka_data:
   elasticsearch_data:

@@ -6,8 +6,10 @@ import com.ecommerce.auth.user.UserAccount;
 import com.ecommerce.auth.user.UserRepository;
 import com.ecommerce.auth.user.UserRole;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -16,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -45,6 +48,9 @@ public class AuthService {
                         "604800"
                 )
         );
+        if (refreshExpirationSeconds <= 0) {
+            throw new IllegalArgumentException("Refresh-token expiration must be positive");
+        }
     }
 
     public AuthDtos.UserResponse register(AuthDtos.RegisterRequest request) {
@@ -69,7 +75,15 @@ public class AuthService {
                 now
         );
 
-        userRepository.save(user);
+        try {
+            userRepository.save(user);
+        } catch (DuplicateKeyException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Email is already registered",
+                    exception
+            );
+        }
 
         return toResponse(user);
     }
@@ -101,26 +115,34 @@ public class AuthService {
         return toResponse(user);
     }
 
+    @Transactional
     public AuthDtos.TokenResponse refresh(AuthDtos.RefreshRequest request) {
+        UUID presentedTokenId = extractRefreshTokenId(request.refreshToken());
         String rawToken = extractRawRefreshToken(request.refreshToken());
         String hash = hashToken(rawToken);
 
         RefreshToken oldToken = refreshTokenRepository.findActiveByHash(hash)
                 .orElseThrow(this::invalidRefreshToken);
 
-        if (oldToken.expiresAt().isBefore(Instant.now())) {
+        if (!oldToken.id().equals(presentedTokenId)
+                || oldToken.expiresAt().isBefore(Instant.now())) {
             throw invalidRefreshToken();
         }
 
         UserAccount user = userRepository.findById(oldToken.userId())
                 .orElseThrow(this::invalidRefreshToken);
+        if (!user.enabled()) {
+            throw invalidRefreshToken();
+        }
 
         AuthDtos.TokenResponse response = issueTokens(user);
         UUID replacementId = UUID.fromString(
                 response.refreshToken().substring(0, 36)
         );
 
-        refreshTokenRepository.revoke(oldToken.id(), replacementId);
+        if (refreshTokenRepository.revoke(oldToken.id(), replacementId) != 1) {
+            throw invalidRefreshToken();
+        }
 
         return response;
     }
@@ -187,8 +209,20 @@ public class AuthService {
         return token.substring(separator + 1);
     }
 
+    private UUID extractRefreshTokenId(String token) {
+        int separator = token.indexOf('.');
+        if (separator <= 0 || separator == token.length() - 1) {
+            throw invalidRefreshToken();
+        }
+        try {
+            return UUID.fromString(token.substring(0, separator));
+        } catch (IllegalArgumentException exception) {
+            throw invalidRefreshToken();
+        }
+    }
+
     private String normalizeEmail(String email) {
-        return email.trim().toLowerCase();
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     private AuthDtos.UserResponse toResponse(UserAccount user) {

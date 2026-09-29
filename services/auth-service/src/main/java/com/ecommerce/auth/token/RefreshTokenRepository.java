@@ -46,6 +46,7 @@ public class RefreshTokenRepository {
                         FROM refresh_tokens
                         WHERE token_hash = :tokenHash
                           AND revoked = FALSE
+                          AND expires_at > CURRENT_TIMESTAMP
                         """)
                 .param("tokenHash", tokenHash)
                 .query((rs, rowNum) -> new RefreshToken(
@@ -60,11 +61,13 @@ public class RefreshTokenRepository {
                 .optional();
     }
 
-    public void revoke(UUID id, UUID replacedBy) {
-        jdbcClient.sql("""
+    public int revoke(UUID id, UUID replacedBy) {
+        return jdbcClient.sql("""
                         UPDATE refresh_tokens
                         SET revoked = TRUE, replaced_by = :replacedBy
                         WHERE id = :id
+                          AND revoked = FALSE
+                          AND expires_at > CURRENT_TIMESTAMP
                         """)
                 .param("id", id)
                 .param("replacedBy", replacedBy)

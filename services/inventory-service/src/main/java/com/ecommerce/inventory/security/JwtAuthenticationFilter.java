@@ -20,15 +20,18 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Set<String> ALLOWED_ROLES = Set.of("CUSTOMER", "ADMIN");
+
     private final SecretKey signingKey;
 
     public JwtAuthenticationFilter(@Value("${app.jwt.secret}") String secret) {
-        if (secret.length() < 32) {
-            throw new IllegalArgumentException("JWT secret must contain at least 32 characters");
+        if (secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalArgumentException("JWT secret must contain at least 32 UTF-8 bytes");
         }
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
@@ -45,7 +48,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         String authorization = request.getHeader("Authorization");
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        if (authorization == null || authorization.length() <= 7
+                || !authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Bearer token required");
             return;
         }
@@ -56,20 +60,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             claims = Jwts.parser()
                     .verifyWith(signingKey)
                     .build()
-                    .parseSignedClaims(authorization.substring(7))
+                    .parseSignedClaims(authorization.substring(7).trim())
                     .getPayload();
             Object rawRoles = claims.get("roles");
-            if (!(rawRoles instanceof Collection<?> roles) || claims.getSubject() == null) {
+            if (!(rawRoles instanceof Collection<?> roles)
+                    || claims.getSubject() == null || claims.getSubject().isBlank()
+                    || roles.isEmpty()
+                    || roles.stream().anyMatch(role -> !(role instanceof String value)
+                            || !ALLOWED_ROLES.contains(value))) {
+                SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token claims");
                 return;
             }
 
             authorities = roles.stream()
-                    .filter(String.class::isInstance)
                     .map(String.class::cast)
                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                     .toList();
             if (authorities.isEmpty()) {
+                SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has no valid roles");
                 return;
             }

@@ -4,8 +4,6 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {
@@ -18,32 +16,37 @@ public class ProductController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Product create(@Valid @RequestBody Product product) {
-        return productService.create(product);
+    public ProductResponse create(@Valid @RequestBody ProductRequest request) {
+        return productService.create(request);
     }
 
     @GetMapping
-    public List<Product> findAll(
-            @RequestParam(required = false) String search
+    public ProductPageResponse<ProductResponse> findAll(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
         if (search != null && !search.isBlank()) {
-            return productService.search(search);
+            if (search.length() > 200) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "search must be at most 200 characters");
+            }
+            return productService.search(search.trim(), page, size);
         }
-
-        return productService.findAll();
+        return productService.findAll(page, size);
     }
 
     @GetMapping("/{id}")
-    public Product findById(@PathVariable String id) {
+    public ProductResponse findById(@PathVariable String id) {
         return productService.findById(id);
     }
 
     @PutMapping("/{id}")
-    public Product update(
+    public ProductResponse update(
             @PathVariable String id,
-            @Valid @RequestBody Product product
+            @Valid @RequestBody ProductRequest request
     ) {
-        return productService.update(id, product);
+        return productService.update(id, request);
     }
 
     @DeleteMapping("/{id}")

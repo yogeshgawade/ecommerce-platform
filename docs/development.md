@@ -21,6 +21,7 @@ Use Kafka events for asynchronous state changes and workflows.
 - `inventory-events`
 - `payment-events`
 - `catalog-events`
+- `review-events`
 - `notification-events`
 
 ## API error format

@@ -2,13 +2,14 @@ package com.ecommerce.inventory.service;
 
 import com.ecommerce.inventory.model.Inventory;
 import com.ecommerce.inventory.repository.InventoryRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 public class InventoryService {
@@ -19,8 +20,8 @@ public class InventoryService {
         this.inventoryRepository = inventoryRepository;
     }
 
-    public List<Inventory> findAll() {
-        return inventoryRepository.findAll();
+    public Page<Inventory> findAll(Pageable pageable) {
+        return inventoryRepository.findAll(pageable);
     }
 
     public Inventory findByProductId(String productId) {

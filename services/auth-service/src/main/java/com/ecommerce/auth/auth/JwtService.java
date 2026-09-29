@@ -1,6 +1,7 @@
 package com.ecommerce.auth.auth;
 
 import com.ecommerce.auth.user.UserAccount;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,10 +22,13 @@ public class JwtService {
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.access-token-expiration-seconds}") long expirationSeconds
     ) {
-        if (secret.length() < 32) {
+        if (secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException(
-                    "JWT secret must contain at least 32 characters"
+                    "JWT secret must contain at least 32 UTF-8 bytes"
             );
+        }
+        if (expirationSeconds <= 0) {
+            throw new IllegalArgumentException("Access-token expiration must be positive");
         }
 
         this.secretKey = Keys.hmacShaKeyFor(
@@ -42,11 +46,19 @@ public class JwtService {
                 .claim("roles", new String[]{user.role().name()})
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)))
-                .signWith(secretKey)
+                .signWith(secretKey, Jwts.SIG.HS256)
                 .compact();
     }
 
     public long expirationSeconds() {
         return expirationSeconds;
+    }
+
+    public Claims parseAccessToken(String token) {
+        return Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

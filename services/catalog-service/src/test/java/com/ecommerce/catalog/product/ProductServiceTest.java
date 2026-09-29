@@ -1,12 +1,16 @@
 package com.ecommerce.catalog.product;
 
+import com.ecommerce.catalog.events.ProductOutboxMessage;
+import com.ecommerce.catalog.events.ProductOutboxRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -17,129 +21,162 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
 
-    @Mock
     private ProductRepository productRepository;
-
-    @InjectMocks
+    private ProductOutboxRepository outboxRepository;
+    private ObjectMapper objectMapper;
     private ProductService productService;
-
     private Product product;
 
     @BeforeEach
     void setUp() {
-        product = new Product();
-        product.setId("product-1");
-        product.setName("Running Shoes");
-        product.setDescription("Lightweight running shoes");
-        product.setCategory("footwear");
-        product.setBrand("Acme");
-        product.setPrice(new BigDecimal("2999.00"));
-        product.setStockQuantity(25);
-        product.setAttributes(Map.of("color", "black", "size", "10"));
+        productRepository = mock(ProductRepository.class);
+        outboxRepository = mock(ProductOutboxRepository.class);
+        objectMapper = mock(ObjectMapper.class);
+        productService = new ProductService(productRepository, outboxRepository, objectMapper, "catalog-events");
+        product = product();
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"eventType\":\"product\"}");
     }
 
     @Test
-    void createShouldSetTimestampsAndSaveProduct() {
-        when(productRepository.save(any(Product.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+    void createSetsServerTimestampsAndWritesCreatedEvent() {
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.setId("generated-id");
+            return saved;
+        });
 
-        Product result = productService.create(product);
+        ProductResponse result = productService.create(request());
 
-        assertNotNull(result.getCreatedAt());
-        assertNotNull(result.getUpdatedAt());
-        assertEquals("Running Shoes", result.getName());
-        verify(productRepository).save(product);
+        assertEquals("generated-id", result.id());
+        assertNotNull(result.createdAt());
+        assertEquals(result.createdAt(), result.updatedAt());
+        verify(productRepository).save(any(Product.class));
+        verify(outboxRepository).save(argThat(message ->
+                message.getTopic().equals("catalog-events")
+                        && message.getMessageKey().equals("generated-id")));
     }
 
     @Test
-    void findAllShouldReturnAllProducts() {
-        when(productRepository.findAll()).thenReturn(List.of(product));
+    void createDoesNotAcceptAnIdOrStockFromRequest() {
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            assertNull(saved.getId());
+            saved.setId("generated-id");
+            return saved;
+        });
 
-        List<Product> result = productService.findAll();
+        productService.create(request());
 
-        assertEquals(1, result.size());
-        assertEquals("product-1", result.get(0).getId());
-        verify(productRepository).findAll();
+        verify(productRepository).save(any(Product.class));
     }
 
     @Test
-    void findByIdShouldReturnProductWhenProductExists() {
-        when(productRepository.findById("product-1"))
-                .thenReturn(Optional.of(product));
+    void findAllReturnsPagedProducts() {
+        when(productRepository.findAll(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(product), PageRequest.of(0, 20), 35));
 
-        Product result = productService.findById("product-1");
+        ProductPageResponse<ProductResponse> result = productService.findAll(0, 20);
 
-        assertEquals("product-1", result.getId());
+        assertEquals(1, result.content().size());
+        assertEquals(35, result.totalElements());
+        assertEquals(2, result.totalPages());
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        verify(productRepository).findAll(pageable.capture());
+        assertEquals(0, pageable.getValue().getPageNumber());
+        assertEquals(20, pageable.getValue().getPageSize());
+        assertEquals(Sort.Direction.DESC,
+                pageable.getValue().getSort().getOrderFor("createdAt").getDirection());
     }
 
     @Test
-    void findByIdShouldThrowNotFoundWhenProductDoesNotExist() {
-        when(productRepository.findById("missing"))
-                .thenReturn(Optional.empty());
+    void rejectsOutOfRangePageSize() {
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> productService.findAll(0, 101)
+        );
+        assertEquals(400, exception.getStatusCode().value());
+        verifyNoInteractions(productRepository);
+    }
+
+    @Test
+    void findByIdReturnsProductWhenItExists() {
+        when(productRepository.findById("product-1")).thenReturn(Optional.of(product));
+
+        assertEquals("product-1", productService.findById("product-1").id());
+    }
+
+    @Test
+    void findByIdThrowsNotFoundWhenProductDoesNotExist() {
+        when(productRepository.findById("missing")).thenReturn(Optional.empty());
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
                 () -> productService.findById("missing")
         );
-
         assertEquals(404, exception.getStatusCode().value());
     }
 
     @Test
-    void updateShouldPreserveIdAndCreatedAt() {
-        Product existing = new Product();
-        existing.setId("product-1");
-        existing.setCreatedAt(product.getCreatedAt());
+    void updatePreservesIdAndCreatedAtAndWritesUpdatedEvent() {
+        when(productRepository.findById("product-1")).thenReturn(Optional.of(product));
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(productRepository.findById("product-1"))
-                .thenReturn(Optional.of(existing));
-        when(productRepository.save(any(Product.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        ProductResponse result = productService.update("product-1", request());
 
-        Product result = productService.update("product-1", product);
-
-        assertEquals("product-1", result.getId());
-        assertEquals("Running Shoes", result.getName());
-        assertEquals(new BigDecimal("2999.00"), result.getPrice());
-        assertNotNull(result.getUpdatedAt());
-        verify(productRepository).save(existing);
+        assertEquals("product-1", result.id());
+        assertEquals("2026-01-01T00:00:00Z", result.createdAt().toString());
+        assertNotNull(result.updatedAt());
+        verify(outboxRepository).save(argThat(message ->
+                message.getMessageKey().equals("product-1")));
     }
 
     @Test
-    void deleteShouldDeleteExistingProduct() {
-        when(productRepository.existsById("product-1")).thenReturn(true);
+    void deleteWritesDeletedEventWithProductSnapshot() {
+        when(productRepository.findById("product-1")).thenReturn(Optional.of(product));
 
         productService.delete("product-1");
 
-        verify(productRepository).deleteById("product-1");
+        verify(productRepository).delete(product);
+        ArgumentCaptor<ProductOutboxMessage> outboxMessage = ArgumentCaptor.forClass(ProductOutboxMessage.class);
+        verify(outboxRepository).save(outboxMessage.capture());
+        assertEquals("product-1", outboxMessage.getValue().getMessageKey());
     }
 
     @Test
-    void deleteShouldThrowNotFoundWhenProductDoesNotExist() {
-        when(productRepository.existsById("missing")).thenReturn(false);
+    void searchUsesPagedRepositoryQuery() {
+        when(productRepository.findByNameContainingIgnoreCase(eq("running"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(product)));
 
-        ResponseStatusException exception = assertThrows(
-                ResponseStatusException.class,
-                () -> productService.delete("missing")
+        ProductPageResponse<ProductResponse> result = productService.search("running", 0, 10);
+
+        assertEquals("Running Shoes", result.content().getFirst().name());
+        verify(productRepository).findByNameContainingIgnoreCase(eq("running"), any(Pageable.class));
+    }
+
+    private Product product() {
+        Product value = new Product();
+        value.setId("product-1");
+        value.setName("Running Shoes");
+        value.setDescription("Lightweight running shoes");
+        value.setCategory("footwear");
+        value.setBrand("Acme");
+        value.setPrice(new BigDecimal("2999.00"));
+        value.setAttributes(Map.of("color", "black", "size", "10"));
+        value.setCreatedAt(java.time.Instant.parse("2026-01-01T00:00:00Z"));
+        value.setUpdatedAt(value.getCreatedAt());
+        return value;
+    }
+
+    private ProductRequest request() {
+        return new ProductRequest(
+                "Running Shoes",
+                "Lightweight running shoes",
+                "footwear",
+                "Acme",
+                new BigDecimal("2999.00"),
+                Map.of("color", "black", "size", "10")
         );
-
-        assertEquals(404, exception.getStatusCode().value());
-        verify(productRepository, never()).deleteById(any());
-    }
-
-    @Test
-    void searchShouldDelegateToRepository() {
-        when(productRepository.findByNameContainingIgnoreCase("running"))
-                .thenReturn(List.of(product));
-
-        List<Product> result = productService.search("running");
-
-        assertEquals(1, result.size());
-        assertEquals("Running Shoes", result.get(0).getName());
-        verify(productRepository)
-                .findByNameContainingIgnoreCase("running");
     }
 }

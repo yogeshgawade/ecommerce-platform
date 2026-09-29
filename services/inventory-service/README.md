@@ -14,9 +14,9 @@ Flyway initializes the inventory schema when the service connects to PostgreSQL.
 
 ## REST API
 
-- `GET /api/inventory` lists stock records.
+- `GET /api/inventory?page=0&size=20` lists stock records in product ID order. Page size is limited to 100.
 - `GET /api/inventory/{productId}` returns stock and available quantity.
-- `PUT /api/inventory/{productId}` creates or sets total stock. The quantity cannot be reduced below currently reserved stock.
+- `PUT /api/inventory/{productId}` accepts `{"quantity":10}` to create or set total stock. The quantity cannot be reduced below currently reserved stock.
 - `POST /api/inventory/{productId}/reserve?quantity=N` reserves stock synchronously.
 - `POST /api/inventory/{productId}/release?quantity=N` releases a reservation.
 - `POST /api/inventory/{productId}/deduct?quantity=N` deducts an existing reservation.
@@ -56,7 +56,7 @@ Reservation success and failure events are written to the PostgreSQL outbox in t
 }
 ```
 
-Failure uses `InventoryReservationFailed` and includes a human-readable `reason`. The outbox retries unpublished events after restart or Kafka outages. Consumers should still be idempotent because delivery is at least once.
+Failure uses `InventoryReservationFailed` and includes a human-readable `reason`. The outbox retries unpublished events after restart or Kafka outages using capped exponential backoff, so a repeatedly failing old message cannot permanently block later messages. Consumers should still be idempotent because delivery is at least once.
 
 ## Configuration
 

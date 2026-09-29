@@ -24,6 +24,7 @@ Use Kafka events for asynchronous state changes and workflow propagation.
 - `inventory-events`
 - `payment-events`
 - `catalog-events`
+- `review-events` (review-service → search-service; keeps rating filters current)
 - `notification-events`
 
 ## Development phases

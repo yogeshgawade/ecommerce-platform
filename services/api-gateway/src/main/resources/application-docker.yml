@@ -8,7 +8,22 @@ spring:
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
             - RemoveResponseHeader=Server
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userKeyResolver}"
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
           routes:
+            - id: review-service
+              uri: http://review-service:8000
+              predicates:
+                - Path=/api/products/*/reviews,/api/products/*/reviews/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: reviewCircuitBreaker
+                    fallbackUri: forward:/fallback/review
             - id: auth-service
               uri: http://auth-service:8082
               predicates:
@@ -21,7 +36,7 @@ spring:
             - id: catalog-service
               uri: http://catalog-service:8081
               predicates:
-                - Path=/api/products/**
+                - Path=/api/products,/api/products/**
               filters:
                 - name: CircuitBreaker
                   args:
@@ -40,6 +55,42 @@ spring:
               uri: http://inventory-service:8083
               predicates:
                 - Path=/api/inventory/**
+            - id: order-service
+              uri: http://order-service:8084
+              predicates:
+                - Path=/api/orders,/api/orders/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: orderCircuitBreaker
+                    fallbackUri: forward:/fallback/order
+            - id: payment-service
+              uri: http://payment-service:8000
+              predicates:
+                - Path=/api/payments/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: paymentCircuitBreaker
+                    fallbackUri: forward:/fallback/payment
+            - id: search-service
+              uri: http://search-service:8000
+              predicates:
+                - Path=/search,/search/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: searchCircuitBreaker
+                    fallbackUri: forward:/fallback/search
+            - id: wishlist-service
+              uri: http://wishlist-service:8000
+              predicates:
+                - Path=/api/wishlist,/api/wishlist/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: wishlistCircuitBreaker
+                    fallbackUri: forward:/fallback/wishlist
             - id: fallback-route
               uri: no://op
               predicates:
@@ -50,7 +101,7 @@ spring:
     redis:
       host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD:redis_dev_password}
 
 server:
   port: 8080
@@ -59,13 +110,15 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway
+        include: health
   endpoint:
     health:
-      show-details: always
+      show-details: never
     gateway:
-      enabled: true
+      enabled: false
 
 app:
   jwt:
     secret: ${APP_JWT_SECRET:local-development-secret-change-this-to-a-long-random-value}
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}

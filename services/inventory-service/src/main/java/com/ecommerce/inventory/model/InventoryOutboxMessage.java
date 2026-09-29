@@ -38,6 +38,9 @@ public class InventoryOutboxMessage {
     @Column(name = "last_error", length = 2000)
     private String lastError;
 
+    @Column(name = "next_attempt_at")
+    private Instant nextAttemptAt;
+
     protected InventoryOutboxMessage() {
     }
 
@@ -53,14 +56,21 @@ public class InventoryOutboxMessage {
     public String getTopic() { return topic; }
     public String getMessageKey() { return messageKey; }
     public String getPayload() { return payload; }
+    public Instant getPublishedAt() { return publishedAt; }
+    public String getLastError() { return lastError; }
+    public Integer getAttempts() { return attempts; }
+    public Instant getNextAttemptAt() { return nextAttemptAt; }
 
     public void markPublished() {
         this.publishedAt = Instant.now();
+        this.nextAttemptAt = null;
         this.lastError = null;
     }
 
     public void markAttemptFailed(String error) {
         this.attempts++;
         this.lastError = error.length() > 2000 ? error.substring(0, 2000) : error;
+        long retryDelayMillis = Math.min(300_000L, 1_000L << Math.min(attempts - 1, 9));
+        this.nextAttemptAt = Instant.now().plusMillis(retryDelayMillis);
     }
 }

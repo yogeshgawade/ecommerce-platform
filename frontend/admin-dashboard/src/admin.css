@@ -1,0 +1,153 @@
+.admin-topbar {
+  background: #f1f0e8;
+}
+.admin-logo {
+  font-size: 1.05rem;
+}
+.admin-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.admin-avatar {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  border-radius: 50%;
+  background: #dce0d2;
+  color: var(--olive-dark);
+  font-weight: 700;
+}
+.admin-welcome {
+  padding: 24px 0 30px;
+}
+.admin-welcome .eyebrow {
+  margin-bottom: 8px;
+}
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 18px;
+  margin-top: 19px;
+}
+.chart-placeholder {
+  height: 190px;
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
+  padding: 20px 8px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.chart-placeholder span {
+  flex: 1;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #9ca88e, #d8ddce);
+  min-width: 10px;
+}
+.chart-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+.activity-list {
+  display: grid;
+  gap: 14px;
+}
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #879276;
+}
+.activity-item small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  margin-top: 3px;
+}
+.admin-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.admin-filters .search-input {
+  flex: 1;
+  min-width: 200px;
+}
+.inventory-quantity {
+  font-weight: 700;
+}
+.inventory-low {
+  color: #a04b3d;
+}
+.admin-login {
+  min-height: 70vh;
+}
+.role-denied {
+  max-width: 620px;
+  margin: 50px auto;
+}
+.order-detail-panel {
+  margin-top: 18px;
+}
+.inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.inline-form .field {
+  max-width: 220px;
+  flex: 1;
+}
+.product-actions {
+  display: flex;
+  gap: 7px;
+}
+.admin-prompt {
+  max-width: 430px;
+  margin: 90px auto;
+  text-align: center;
+  padding: 36px;
+}
+@media (max-width: 760px) {
+  .admin-user > span:not(.admin-avatar) {
+    display: none;
+  }
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-content .page-title {
+    align-items: flex-start;
+  }
+  .admin-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-filters .search-input {
+    width: 100%;
+    max-width: none;
+  }
+  .inline-form {
+    align-items: stretch;
+  }
+  .inventory-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inventory-form .field {
+    max-width: none;
+  }
+}

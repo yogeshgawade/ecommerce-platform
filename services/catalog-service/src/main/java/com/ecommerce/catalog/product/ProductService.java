@@ -1,67 +1,123 @@
 package com.ecommerce.catalog.product;
 
+import com.ecommerce.catalog.events.ProductEvent;
+import com.ecommerce.catalog.events.ProductOutboxMessage;
+import com.ecommerce.catalog.events.ProductOutboxRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 public class ProductService {
 
-    private final ProductRepository productRepository;
+    private static final int MAX_PAGE_SIZE = 100;
 
-    public ProductService(ProductRepository productRepository) {
+    private final ProductRepository productRepository;
+    private final ProductOutboxRepository outboxRepository;
+    private final ObjectMapper objectMapper;
+    private final String productTopic;
+
+    public ProductService(
+            ProductRepository productRepository,
+            ProductOutboxRepository outboxRepository,
+            ObjectMapper objectMapper,
+            @Value("${app.kafka.product-topic:catalog-events}") String productTopic
+    ) {
         this.productRepository = productRepository;
+        this.outboxRepository = outboxRepository;
+        this.objectMapper = objectMapper;
+        this.productTopic = productTopic;
     }
 
-    public Product create(Product product) {
+    @Transactional
+    public ProductResponse create(ProductRequest request) {
         Instant now = Instant.now();
+        Product product = new Product();
+        applyRequest(product, request);
         product.setCreatedAt(now);
         product.setUpdatedAt(now);
-        return productRepository.save(product);
+
+        Product saved = productRepository.save(product);
+        enqueue(ProductEvent.from("ProductCreated", saved));
+        return ProductResponse.from(saved);
     }
 
-    public List<Product> findAll() {
-        return productRepository.findAll();
+    @Transactional(readOnly = true)
+    public ProductPageResponse<ProductResponse> findAll(int page, int size) {
+        return ProductPageResponse.from(
+                productRepository.findAll(pageRequest(page, size)),
+                ProductResponse::from
+        );
     }
 
-    public Product findById(String id) {
-        return productRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Product not found"
-                ));
+    @Transactional(readOnly = true)
+    public ProductResponse findById(String id) {
+        return ProductResponse.from(findProduct(id));
     }
 
-    public Product update(String id, Product request) {
-        Product product = findById(id);
-
-        product.setName(request.getName());
-        product.setDescription(request.getDescription());
-        product.setCategory(request.getCategory());
-        product.setBrand(request.getBrand());
-        product.setPrice(request.getPrice());
-        product.setStockQuantity(request.getStockQuantity());
-        product.setAttributes(request.getAttributes());
+    @Transactional
+    public ProductResponse update(String id, ProductRequest request) {
+        Product product = findProduct(id);
+        applyRequest(product, request);
         product.setUpdatedAt(Instant.now());
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        enqueue(ProductEvent.from("ProductUpdated", saved));
+        return ProductResponse.from(saved);
     }
 
+    @Transactional
     public void delete(String id) {
-        if (!productRepository.existsById(id)) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Product not found"
-            );
-        }
-
-        productRepository.deleteById(id);
+        Product product = findProduct(id);
+        productRepository.delete(product);
+        enqueue(ProductEvent.from("ProductDeleted", product));
     }
 
-    public List<Product> search(String query) {
-        return productRepository.findByNameContainingIgnoreCase(query);
+    @Transactional(readOnly = true)
+    public ProductPageResponse<ProductResponse> search(String query, int page, int size) {
+        return ProductPageResponse.from(
+                productRepository.findByNameContainingIgnoreCase(query, pageRequest(page, size)),
+                ProductResponse::from
+        );
+    }
+
+    private Product findProduct(String id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+    }
+
+    private PageRequest pageRequest(int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "page must be non-negative and size must be between 1 and " + MAX_PAGE_SIZE);
+        }
+        return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    private void applyRequest(Product product, ProductRequest request) {
+        product.setName(request.name().trim());
+        product.setDescription(request.description());
+        product.setCategory(request.category().trim());
+        product.setBrand(request.brand().trim());
+        product.setPrice(request.price());
+        product.setAttributes(request.attributes());
+    }
+
+    private void enqueue(ProductEvent event) {
+        ProductOutboxMessage message = new ProductOutboxMessage(
+                event.eventId(),
+                productTopic,
+                event.productId(),
+                objectMapper.writeValueAsString(event)
+        );
+        outboxRepository.save(message);
     }
 }

@@ -31,9 +31,6 @@ public class Product {
     @DecimalMin(value = "0.0", inclusive = false)
     private BigDecimal price;
 
-    @NotNull
-    private Integer stockQuantity;
-
     private Map<String, String> attributes;
 
     private Instant createdAt;
@@ -50,7 +47,6 @@ public class Product {
             String category,
             String brand,
             BigDecimal price,
-            Integer stockQuantity,
             Map<String, String> attributes,
             Instant createdAt,
             Instant updatedAt
@@ -61,7 +57,6 @@ public class Product {
         this.category = category;
         this.brand = brand;
         this.price = price;
-        this.stockQuantity = stockQuantity;
         this.attributes = attributes;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -113,14 +108,6 @@ public class Product {
 
     public void setPrice(BigDecimal price) {
         this.price = price;
-    }
-
-    public Integer getStockQuantity() {
-        return stockQuantity;
-    }
-
-    public void setStockQuantity(Integer stockQuantity) {
-        this.stockQuantity = stockQuantity;
     }
 
     public Map<String, String> getAttributes() {

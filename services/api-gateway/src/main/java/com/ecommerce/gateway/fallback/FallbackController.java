@@ -34,6 +34,41 @@ public class FallbackController {
                 .body(createErrorResponse("Cart Service", "Cart service is currently unavailable")));
     }
 
+    @RequestMapping("/order")
+    public Mono<ResponseEntity<Map<String, Object>>> orderFallback() {
+        return Mono.just(ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(createErrorResponse("Order Service", "Order service is currently unavailable")));
+    }
+
+    @RequestMapping("/payment")
+    public Mono<ResponseEntity<Map<String, Object>>> paymentFallback() {
+        return Mono.just(ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(createErrorResponse("Payment Service", "Payment service is currently unavailable")));
+    }
+
+    @RequestMapping("/search")
+    public Mono<ResponseEntity<Map<String, Object>>> searchFallback() {
+        return Mono.just(ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(createErrorResponse("Search Service", "Product search is currently unavailable")));
+    }
+
+    @RequestMapping("/wishlist")
+    public Mono<ResponseEntity<Map<String, Object>>> wishlistFallback() {
+        return Mono.just(ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(createErrorResponse("Wishlist Service", "Wishlist service is currently unavailable")));
+    }
+
+    @RequestMapping("/review")
+    public Mono<ResponseEntity<Map<String, Object>>> reviewFallback() {
+        return Mono.just(ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(createErrorResponse("Review Service", "Product reviews are currently unavailable")));
+    }
+
     private Map<String, Object> createErrorResponse(String service, String message) {
         return Map.of(
                 "timestamp", Instant.now().toString(),
