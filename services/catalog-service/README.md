@@ -13,8 +13,8 @@ Create and update accept product fields only. The service generates IDs and time
 
 ## Product events
 
-Create, update, and delete operations add `ProductCreated`, `ProductUpdated`, or `ProductDeleted` records to MongoDB's `product_outbox` collection in the same transaction as the product change. A scheduled publisher sends those records to the `catalog-events` Kafka topic with the product ID as the message key. Catalog Service declares the topic with three partitions and one replica for the local single-broker setup.
+Products and their attributes are stored in PostgreSQL. Create, update, and delete operations add `ProductCreated`, `ProductUpdated`, or `ProductDeleted` records to the `product_outbox` table in the same PostgreSQL transaction as the product change. A scheduled publisher sends those records to the `catalog-events` Kafka topic with the product ID as the message key. Catalog Service declares the topic with three partitions and one replica for the local single-broker setup.
 
-Delivery is at least once: a process restart after Kafka accepts a message but before MongoDB marks it published can produce a duplicate. Events include an `eventId`; consumers should deduplicate on that ID. The local MongoDB container runs as a single-node replica set because MongoDB transactions require a replica set.
+Delivery is at least once: a process restart after Kafka accepts a message but before PostgreSQL marks it published can produce a duplicate. Events include an `eventId`; consumers should deduplicate on that ID. Flyway creates the catalog tables when the service starts.
 
 The event contains a product snapshot for indexing and downstream projections. Inventory remains a separate source of stock data.

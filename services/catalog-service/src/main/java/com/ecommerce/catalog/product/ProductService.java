@@ -14,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Service
 public class ProductService {
@@ -24,6 +25,8 @@ public class ProductService {
     private final ProductOutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
     private final String productTopic;
+    @Value("${app.kafka.enabled:true}")
+    private boolean kafkaEnabled = true;
 
     public ProductService(
             ProductRepository productRepository,
@@ -41,6 +44,7 @@ public class ProductService {
     public ProductResponse create(ProductRequest request) {
         Instant now = Instant.now();
         Product product = new Product();
+        product.setId(UUID.randomUUID().toString());
         applyRequest(product, request);
         product.setCreatedAt(now);
         product.setUpdatedAt(now);
@@ -112,6 +116,10 @@ public class ProductService {
     }
 
     private void enqueue(ProductEvent event) {
+        if (!kafkaEnabled) {
+            return;
+        }
+
         ProductOutboxMessage message = new ProductOutboxMessage(
                 event.eventId(),
                 productTopic,

@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,29 +42,26 @@ class ProductServiceTest {
 
     @Test
     void createSetsServerTimestampsAndWritesCreatedEvent() {
-        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
-            Product saved = invocation.getArgument(0);
-            saved.setId("generated-id");
-            return saved;
-        });
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProductResponse result = productService.create(request());
 
-        assertEquals("generated-id", result.id());
+        assertDoesNotThrow(() -> UUID.fromString(result.id()));
         assertNotNull(result.createdAt());
         assertEquals(result.createdAt(), result.updatedAt());
-        verify(productRepository).save(any(Product.class));
+        ArgumentCaptor<Product> product = ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(product.capture());
+        assertEquals(result.id(), product.getValue().getId());
         verify(outboxRepository).save(argThat(message ->
                 message.getTopic().equals("catalog-events")
-                        && message.getMessageKey().equals("generated-id")));
+                        && message.getMessageKey().equals(result.id())));
     }
 
     @Test
-    void createDoesNotAcceptAnIdOrStockFromRequest() {
+    void createGeneratesAnIdBeforeSavingAndDoesNotAcceptStockFromRequest() {
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
             Product saved = invocation.getArgument(0);
-            assertNull(saved.getId());
-            saved.setId("generated-id");
+            assertDoesNotThrow(() -> UUID.fromString(saved.getId()));
             return saved;
         });
 

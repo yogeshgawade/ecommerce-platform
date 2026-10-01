@@ -1,3 +1,11 @@
+# 01-infrastructure-and-ci
+
+
+---
+
+## File: `infra/docker-compose.yml`
+
+```yaml
 name: ecommerce-local
 
 services:
@@ -128,7 +136,6 @@ services:
       SPRING_DATASOURCE_USERNAME: ${ECOMMERCE_POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
       APP_JWT_SECRET: ${JWT_SECRET}
-      APP_KAFKA_ENABLED: ${APP_KAFKA_ENABLED:-true}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
       - "8081:8081"
@@ -444,3 +451,19 @@ volumes:
 networks:
   ecommerce-network:
     driver: bridge
+
+```
+
+---
+
+## File: `infra/postgres/init.sql`
+
+```sql
+CREATE DATABASE catalog_db;
+CREATE DATABASE auth_db;
+CREATE DATABASE inventory_db;
+CREATE DATABASE order_db;
+CREATE DATABASE payment_db;
+CREATE DATABASE notification_db;
+
+```

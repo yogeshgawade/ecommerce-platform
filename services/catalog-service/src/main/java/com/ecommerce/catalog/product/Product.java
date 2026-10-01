@@ -1,40 +1,59 @@
 package com.ecommerce.catalog.product;
 
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
 
-@Document(collection = "products")
+@Entity
+@Table(name = "products")
 public class Product {
 
     @Id
+    @Column(length = 36, nullable = false, updatable = false)
     private String id;
 
     @NotBlank
+    @Column(nullable = false, length = 200)
     private String name;
 
+    @Column(length = 5000)
     private String description;
 
     @NotBlank
+    @Column(nullable = false, length = 100)
     private String category;
 
     @NotBlank
+    @Column(nullable = false, length = 100)
     private String brand;
 
     @NotNull
     @DecimalMin(value = "0.0", inclusive = false)
+    @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
+    @ElementCollection
+    @CollectionTable(name = "product_attributes", joinColumns = @JoinColumn(name = "product_id"))
+    @MapKeyColumn(name = "attribute_name", length = 100)
+    @Column(name = "attribute_value", length = 500)
     private Map<String, String> attributes;
 
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     public Product() {
