@@ -165,9 +165,9 @@ The other Gradle modules are `api-gateway`, `auth-service`, `catalog-service`, a
 
 Audit run on 2026-10-07:
 
-- Java: Catalog 20/20, Inventory 16/16, and Order 8/8 tests passed. Gateway ran 13 tests with 9 failures: the authorization WebFlux slices cannot load because `UrlBasedCorsConfigurationSource` is absent from their test context. Auth ran 8 tests with 1 failure: `contextLoads()` attempted to connect to PostgreSQL at localhost. The other tests in those suites passed.
+- Java: all 65 tests passed: Gateway 13/13, Auth 8/8, Catalog 20/20, Inventory 16/16, and Order 8/8. Auth passed after starting the Compose PostgreSQL service. Gateway authorization slices now import the CORS configuration used by the application.
 - Python: all six `python3 -m pytest -q` commands stopped before collection because system Python has no pytest installed. No Python test result is claimed.
-- Compose: `docker compose ... config --quiet` passed. No Compose containers were running during the audit, so application startup and end-to-end flows were not verified.
+- Compose: `docker compose ... config --quiet` passed. PostgreSQL was started for the Auth tests. The complete Compose stack was not started, so application startup and end-to-end flows were not verified.
 
 ## AWS / Deployment
 
@@ -191,7 +191,7 @@ The service APIs, per-service persistence, JWT authorization, outbox-backed chec
 
 ### Partial
 
-Payment completion needs valid Stripe keys and a reachable webhook. Review-to-search updates have no outbox. Gateway authorization tests and the Auth context-load test currently fail; Python tests were not runnable in this environment. The complete stack was not started for this audit.
+Payment completion needs valid Stripe keys and a reachable webhook. Review-to-search updates have no outbox.
 
 ### Not Implemented
 
@@ -199,10 +199,10 @@ There is no full AWS deployment definition beyond Auth Service, no Testcontainer
 
 ### Deployment Status
 
-Local Compose is defined but stopped at audit time. AWS resources are not evidenced as deployed.
+Only the Compose PostgreSQL service is running for tests; the rest of the local stack is stopped. AWS resources are not evidenced as deployed.
 
 ## Roadmap
 
-1. Fix the gateway test slice and make Auth's context test self-contained, then add runnable Python test environments.
+1. Make Auth's context test self-contained and add runnable Python test environments.
 2. Add an outbox for review rating changes and integration coverage for the full order-to-payment-to-inventory flow.
 3. Remove the OIDC token debug step and extend deployment infrastructure beyond Auth Service.
