@@ -59,7 +59,7 @@ tasks.named('test') {
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
 distributionUrl=https\://services.gradle.org/distributions/gradle-9.7.1-bin.zip
-networkTimeout=10000
+networkTimeout=120000
 retries=0
 retryBackOffMs=500
 validateDistributionUrl=true
@@ -1056,7 +1056,7 @@ public enum UserRole {
 
 ```properties
 spring.application.name=auth-service
-server.port=8082
+server.port=8080
 
 spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth_db}
 spring.datasource.username=${SPRING_DATASOURCE_USERNAME:ecommerce}

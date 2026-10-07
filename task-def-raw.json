@@ -1,0 +1,93 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:ap-south-1:359554405287:task-definition/auth-service:2",
+    "containerDefinitions": [
+        {
+            "name": "auth-service",
+            "image": "359554405287.dkr.ecr.ap-south-1.amazonaws.com/auth-service:latest",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "SERVER_PORT",
+                    "value": "8080"
+                },
+                {
+                    "name": "SPRING_DATASOURCE_USERNAME",
+                    "value": "postgres"
+                },
+                {
+                    "name": "SPRING_DATASOURCE_URL",
+                    "value": "jdbc:postgresql://ecommerce-test-db.cfo2w0oc4rko.ap-south-1.rds.amazonaws.com:5432/postgres"
+                },
+                {
+                    "name": "SPRING_DATASOURCE_PASSWORD",
+                    "value": "TestPass123!"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/auth-service",
+                    "awslogs-region": "ap-south-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "auth-service",
+    "taskRoleArn": "arn:aws:iam::359554405287:role/ecsTaskExecutionRole",
+    "executionRoleArn": "arn:aws:iam::359554405287:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "revision": 2,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "MANAGED_INSTANCES",
+        "FARGATE"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "registeredAt": "2026-10-02T17:02:20.257000+05:30",
+    "registeredBy": "arn:aws:iam::359554405287:user/ecommerce-deployer"
+}

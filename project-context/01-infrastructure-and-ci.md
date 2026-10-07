@@ -136,9 +136,10 @@ services:
       SPRING_DATASOURCE_USERNAME: ${ECOMMERCE_POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
       APP_JWT_SECRET: ${JWT_SECRET}
+      APP_KAFKA_ENABLED: ${APP_KAFKA_ENABLED:-true}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
-      - "8081:8081"
+      - "8081:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -148,7 +149,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:8081/actuator/health || exit 1"
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"
         ]
       interval: 15s
       timeout: 5s
@@ -165,16 +166,16 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       CART_TTL_SECONDS: "86400"
       APP_JWT_SECRET: ${JWT_SECRET}
-      CATALOG_SERVICE_URL: http://catalog-service:8081
+      CATALOG_SERVICE_URL: http://catalog-service:8080
     ports:
-      - "8001:8000"
+      - "8001:8080"
     depends_on:
       redis:
         condition: service_healthy
       catalog-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -191,7 +192,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
       APP_JWT_SECRET: ${JWT_SECRET}
     ports:
-      - "8082:8082"
+      - "8082:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -199,7 +200,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:8082/actuator/health || exit 1"
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"
         ]
       interval: 15s
       timeout: 5s
@@ -217,9 +218,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       APP_JWT_SECRET: ${JWT_SECRET}
-      SERVER_PORT: "8083"
+      SERVER_PORT: "8080"
     ports:
-      - "8083:8083"
+      - "8083:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -229,7 +230,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:8083/actuator/health || exit 1"
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"
         ]
       interval: 15s
       timeout: 5s
@@ -246,10 +247,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${ECOMMERCE_POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       APP_JWT_SECRET: ${JWT_SECRET}
-      CATALOG_SERVICE_URL: http://catalog-service:8081
-      SERVER_PORT: "8084"
+      CATALOG_SERVICE_URL: http://catalog-service:8080
+      SERVER_PORT: "8080"
     ports:
-      - "8084:8084"
+      - "8084:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -263,7 +264,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:8084/actuator/health || exit 1"
+          "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"
         ]
       interval: 15s
       timeout: 5s
@@ -283,14 +284,14 @@ services:
       KAFKA_PAYMENT_TOPIC: payment-events
       KAFKA_CONSUMER_GROUP_ID: payment-service-group
     ports:
-      - "8002:8000"
+      - "8002:8080"
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -319,7 +320,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -336,14 +337,14 @@ services:
       KAFKA_CATALOG_TOPIC: catalog-events
       KAFKA_CONSUMER_GROUP_ID: search-service-group
     ports:
-      - "8003:8000"
+      - "8003:8080"
     depends_on:
       elasticsearch:
         condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -356,17 +357,17 @@ services:
     environment:
       MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_WISHLIST_DB:-wishlist_db}?authSource=admin&replicaSet=rs0
       APP_JWT_SECRET: ${JWT_SECRET}
-      CATALOG_SERVICE_URL: http://catalog-service:8081
+      CATALOG_SERVICE_URL: http://catalog-service:8080
       WISHLIST_MAX_PAGE_SIZE: "100"
     ports:
-      - "8004:8000"
+      - "8004:8080"
     depends_on:
       mongo:
         condition: service_healthy
       catalog-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -379,12 +380,12 @@ services:
     environment:
       MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_REVIEW_DB:-review_db}?authSource=admin&replicaSet=rs0
       APP_JWT_SECRET: ${JWT_SECRET}
-      CATALOG_SERVICE_URL: http://catalog-service:8081
-      ORDER_SERVICE_URL: http://order-service:8084
+      CATALOG_SERVICE_URL: http://catalog-service:8080
+      ORDER_SERVICE_URL: http://order-service:8080
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_REVIEW_TOPIC: review-events
     ports:
-      - "8005:8000"
+      - "8005:8080"
     depends_on:
       mongo:
         condition: service_healthy
@@ -395,7 +396,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -459,6 +460,8 @@ networks:
 ## File: `infra/postgres/init.sql`
 
 ```sql
+-- The PostgreSQL image runs this file only when its data directory is empty.
+-- Keep these names in sync with the ECOMMERCE_POSTGRES_*_DB values in .env.
 CREATE DATABASE catalog_db;
 CREATE DATABASE auth_db;
 CREATE DATABASE inventory_db;

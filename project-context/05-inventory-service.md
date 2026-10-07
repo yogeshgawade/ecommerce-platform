@@ -64,7 +64,7 @@ tasks.named('test') {
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
 distributionUrl=https\://services.gradle.org/distributions/gradle-9.7.1-bin.zip
-networkTimeout=10000
+networkTimeout=120000
 retries=0
 retryBackOffMs=500
 validateDistributionUrl=true
@@ -1439,7 +1439,7 @@ public class ReservationService {
 
 ```properties
 spring.application.name=${SPRING_APPLICATION_NAME:inventory-service}
-server.port=${SERVER_PORT:8083}
+server.port=${SERVER_PORT:8080}
 
 # Database
 spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/inventory_db}

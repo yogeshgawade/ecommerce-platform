@@ -62,7 +62,7 @@ tasks.named('test') {
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
 distributionUrl=https\://services.gradle.org/distributions/gradle-9.7.1-bin.zip
-networkTimeout=10000
+networkTimeout=120000
 retries=0
 retryBackOffMs=500
 validateDistributionUrl=true
@@ -178,12 +178,14 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.config.TopicBuilder;
 
 @Configuration
 public class KafkaTopicConfiguration {
 
     @Bean
+    @ConditionalOnProperty(name = "app.kafka.enabled", havingValue = "true", matchIfMissing = true)
     NewTopic catalogEventsTopic(
             @Value("${app.kafka.product-topic:catalog-events}") String productTopic
     ) {
@@ -335,6 +337,7 @@ package com.ecommerce.catalog.events;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -348,17 +351,24 @@ public class ProductOutboxPublisher {
 
     private final ProductOutboxRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final boolean kafkaEnabled;
 
     public ProductOutboxPublisher(
             ProductOutboxRepository outboxRepository,
-            KafkaTemplate<String, String> kafkaTemplate
+            KafkaTemplate<String, String> kafkaTemplate,
+            @Value("${app.kafka.enabled:true}") boolean kafkaEnabled
     ) {
         this.outboxRepository = outboxRepository;
         this.kafkaTemplate = kafkaTemplate;
+        this.kafkaEnabled = kafkaEnabled;
     }
 
     @Scheduled(fixedDelayString = "${app.kafka.outbox-poll-interval:1000}")
     public void publishPending() {
+        if (!kafkaEnabled) {
+            return;
+        }
+
         for (ProductOutboxMessage message : outboxRepository
                 .findTop50ByPublishedAtIsNullOrderByCreatedAtAscIdAsc()) {
             try {
@@ -775,6 +785,8 @@ public class ProductService {
     private final ProductOutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
     private final String productTopic;
+    @Value("${app.kafka.enabled:true}")
+    private boolean kafkaEnabled = true;
 
     public ProductService(
             ProductRepository productRepository,
@@ -864,6 +876,10 @@ public class ProductService {
     }
 
     private void enqueue(ProductEvent event) {
+        if (!kafkaEnabled) {
+            return;
+        }
+
         ProductOutboxMessage message = new ProductOutboxMessage(
                 event.eventId(),
                 productTopic,
@@ -1028,7 +1044,7 @@ public class SecurityConfiguration {
 
 ```properties
 spring.application.name=catalog-service
-server.port=8081
+server.port=8080
 
 spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/catalog_db}
 spring.datasource.username=${SPRING_DATASOURCE_USERNAME:ecommerce}
@@ -1037,6 +1053,7 @@ spring.jpa.hibernate.ddl-auto=validate
 spring.flyway.enabled=true
 
 app.jwt.secret=${APP_JWT_SECRET:local-development-secret-change-this-to-a-long-random-value}
+app.kafka.enabled=${APP_KAFKA_ENABLED:false}
 spring.kafka.bootstrap-servers=${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer
 spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer
@@ -1045,6 +1062,7 @@ app.kafka.outbox-poll-interval=${KAFKA_OUTBOX_POLL_INTERVAL:1000}
 
 management.endpoints.web.exposure.include=health,info
 management.endpoint.health.show-details=always
+management.health.kafka.enabled=${APP_KAFKA_ENABLED:false}
 
 spring.jackson.default-property-inclusion=non_null
 
@@ -1500,5 +1518,6 @@ spring.datasource.username=sa
 spring.datasource.password=
 spring.jpa.hibernate.ddl-auto=create-drop
 spring.flyway.enabled=false
+app.jwt.secret=catalog-test-secret-that-is-long-enough-for-hmac
 
 ```

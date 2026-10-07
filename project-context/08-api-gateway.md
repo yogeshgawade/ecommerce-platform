@@ -61,7 +61,7 @@ tasks.named('test') {
 distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
 distributionUrl=https\://services.gradle.org/distributions/gradle-9.7.1-bin.zip
-networkTimeout=10000
+networkTimeout=120000
 validateDistributionUrl=true
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
@@ -564,7 +564,7 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
           routes:
             - id: review-service
-              uri: http://review-service:8000
+              uri: http://review-service:8080
               predicates:
                 - Path=/api/products/*/reviews,/api/products/*/reviews/**
               filters:
@@ -573,7 +573,7 @@ spring:
                     name: reviewCircuitBreaker
                     fallbackUri: forward:/fallback/review
             - id: auth-service
-              uri: http://auth-service:8082
+              uri: http://auth-service:8080
               predicates:
                 - Path=/auth/**
               filters:
@@ -582,7 +582,7 @@ spring:
                     name: authCircuitBreaker
                     fallbackUri: forward:/fallback/auth
             - id: catalog-service
-              uri: http://catalog-service:8081
+              uri: http://catalog-service:8080
               predicates:
                 - Path=/api/products,/api/products/**
               filters:
@@ -591,7 +591,7 @@ spring:
                     name: catalogCircuitBreaker
                     fallbackUri: forward:/fallback/catalog
             - id: cart-service
-              uri: http://cart-service:8000
+              uri: http://cart-service:8080
               predicates:
                 - Path=/api/carts/**
               filters:
@@ -600,11 +600,11 @@ spring:
                     name: cartCircuitBreaker
                     fallbackUri: forward:/fallback/cart
             - id: inventory-service
-              uri: http://inventory-service:8083
+              uri: http://inventory-service:8080
               predicates:
                 - Path=/api/inventory/**
             - id: order-service
-              uri: http://order-service:8084
+              uri: http://order-service:8080
               predicates:
                 - Path=/api/orders,/api/orders/**
               filters:
@@ -613,7 +613,7 @@ spring:
                     name: orderCircuitBreaker
                     fallbackUri: forward:/fallback/order
             - id: payment-service
-              uri: http://payment-service:8000
+              uri: http://payment-service:8080
               predicates:
                 - Path=/api/payments/**
               filters:
@@ -622,7 +622,7 @@ spring:
                     name: paymentCircuitBreaker
                     fallbackUri: forward:/fallback/payment
             - id: search-service
-              uri: http://search-service:8000
+              uri: http://search-service:8080
               predicates:
                 - Path=/search,/search/**
               filters:
@@ -631,7 +631,7 @@ spring:
                     name: searchCircuitBreaker
                     fallbackUri: forward:/fallback/search
             - id: wishlist-service
-              uri: http://wishlist-service:8000
+              uri: http://wishlist-service:8080
               predicates:
                 - Path=/api/wishlist,/api/wishlist/**
               filters:
